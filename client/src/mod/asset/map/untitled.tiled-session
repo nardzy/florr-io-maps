@@ -1,0 +1,36 @@
+{
+    "activeFile": "tiles/tileset.tsj",
+    "expandedProjectPaths": [
+        "maps",
+        "tiles",
+        "."
+    ],
+    "fileStates": {
+        "maps/garden.tmj": {
+            "scale": 0.015625,
+            "selectedLayer": 7,
+            "viewCenter": {
+                "x": 28192,
+                "y": 55072
+            }
+        },
+        "tiles/tileset.tsj": {
+            "dynamicWrapping": true,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "tiles/tileset.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1
+        }
+    },
+    "openFiles": [
+        "maps/garden.tmj",
+        "tiles/tileset.tsj"
+    ],
+    "project": "untitled.tiled-project",
+    "recentFiles": [
+        "maps/garden.tmj",
+        "tiles/tileset.tsj"
+    ]
+}

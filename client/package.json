@@ -1,0 +1,21 @@
+{
+  "name": "client",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "cross-env AAARG=dev rspack serve",
+    "build": "cross-env AAARG=prod rspack build"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^1.2.2",
+    "@rspack/core": "^1.2.2",
+    "@types/pako": "^2.0.4",
+    "@types/wicg-file-system-access": "^2023.10.6",
+    "cross-env": "^7.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "pako": "^2.1.0"
+  }
+}
