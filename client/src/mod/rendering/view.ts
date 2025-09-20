@@ -5,15 +5,15 @@ export class ViewEntity {
     rx = 0;
     ry = 0;
     fov = 1;
-    fov_r = 1;
+    fov_r = 100;
 
     update(delta_time: number) {
 
-        const rate = Math.max(1, delta_time * 0.01);
+        const rate = Math.min(1, delta_time * 0.01);
 
-        this.rx += (this.x - this.rx) * rate * 0.1;
-        this.ry += (this.y - this.ry) * rate * 0.1;
-        this.fov_r += (this.fov - this.fov_r) * rate * 0.1;
+        this.rx += (this.x - this.rx) * rate;
+        this.ry += (this.y - this.ry) * rate;
+        this.fov_r += (this.fov - this.fov_r) * rate;
 
     }
     

@@ -1,30 +1,46 @@
 import { Room } from "./mod/asset/room";
 import { Button, Content, PositionAt, TextContent, ToggleButton } from "./mod/gui/button";
-import { BackGround } from "./mod/rendering/background";
+import { BackGroundGl2 } from "./mod/rendering/background";
 import { Painter } from "./mod/rendering/painter";
 import { svg_to_path_2d } from "./mod/rendering/svg2sprite";
 import { PaintId } from "./types/code";
 
 import cog from "./mod/asset/svg/gui/gear-30.svg";
-import bag from "./mod/asset/svg/gui/swap-bag.svg";
-import vibrate from "./mod/asset/svg/gui/vibrating-ball.svg";
+import expander from "./mod/asset/svg/gui/expander.svg";
 import paper from "./mod/asset/svg/gui/scroll-unfurled.svg";
 import discord from "./mod/asset/svg/gui/discord_icon.svg";
 import github from "./mod/asset/svg/gui/github-mark.svg";
 import { change_log } from "./mod/log/changelog";
-import { PI2 } from "./mod/const";
-import { check_mobile } from "./mod/utility";
+import { check_mobile, darkened } from "./mod/utility";
+import { RarityColor } from "./mod/rendering/colorget";
+import { maps } from "./mod/asset/tilemap";
+import { ToolTip } from "./mod/gui/tooltip";
+import { difficulty_rate } from "./mod/asset/game/diffspawn";
 
 const main = async () => {
+
+    console.log(difficulty_rate(-5));
+
+    //return;
 
     const room = new Room();
 
     await room.load();
 
     const painter = new Painter(
-        [PaintId.Game, PaintId.Title, PaintId.UI]
+        [
+            {
+                id: PaintId.BackGround
+            },
+            {
+                id: PaintId.Game
+            },
+            {
+                id: PaintId.UI
+            }
+        ]
     );
-    const background = new BackGround(
+    const background = new BackGroundGl2(
         painter.canvas.width,
         painter.canvas.height,
         room.sprites
@@ -206,38 +222,38 @@ const main = async () => {
         new Button({
             size: 60,
             pad: 20,
-            tooltip: "Inventory",
+            tooltip: "Viewer",
             position: PositionAt.BottomLeft,
-            color: "#5a9fdb",
-            icon: svg_to_path_2d(bag, 512)!,
+            color: "#8a34e0",
+            icon: svg_to_path_2d(expander, 512)!,
             fill: true,
             stroke: false,
             toggle: "Z",
             margin: 15,
             content: new Content({
                 width: 400,
-                height: 600
+                height: 850,
+
+                toggles: [...maps.keys()].map(id => {
+
+                    const button = new ToggleButton({
+                        text: id,
+                        def: localStorage.getItem("visited_map") === id,
+                        callback: bool => {
+
+
+                            room.select(id);
+                            painter.tooltips.clear();
+
+                        }
+                    });
+
+                    return button;
+
+                })
             })
         })
     );
-
-    // import data
-    /*window.showOpenFilePicker().then(x => console.log(x[0].getFile().then(x => x.text().then(x => {
-
-        if (x.length !== 2047) {
-            alert("invalid data");
-            return;
-        }
-
-        const a = new Uint8Array(x.length);
-
-        for (let i = 0; i < x.length; i++) {
-            a[i] = x.charCodeAt(i);
-        }
-
-        console.log(a);
-
-    }))));*/
 
     addEventListener("resize", () => {
 
@@ -361,6 +377,7 @@ const main = async () => {
 
         painter.muframe = true;
         painter.grab = false;
+        painter.last_pdist = 0.0;
 
     });
     addEventListener("touchmove", event => {
@@ -373,6 +390,41 @@ const main = async () => {
 
         const x = touch.clientX * devicePixelRatio;
         const y = devicePixelRatio * touch.clientY;
+
+        if (event.touches.length === 2) {
+
+            const a = event.touches.item(0)!;
+            const b = event.touches.item(1)!;
+
+            const x = a.clientX * devicePixelRatio;
+            const y = a.clientY * devicePixelRatio;
+            const x2 = b.clientX * devicePixelRatio;
+            const y2 = b.clientY * devicePixelRatio;
+
+            const dx = x - x2;
+            const dy = y - y2;
+
+            const dist = Math.sqrt(
+                dx ** 2.0 +
+                dy ** 2.0
+            );
+
+            const diff = dist - painter.last_pdist;
+
+            const power = 1.0 + (!painter.last_pdist ? 0.0 : (
+                diff
+            ) * 0.005);
+
+            painter.last_pdist = dist;
+
+            painter.viewer.fov *= power;
+            painter.viewer.fov = Math.max(0.1, painter.viewer.fov);
+            painter.viewer.fov = Math.min(1, painter.viewer.fov);
+
+            return;
+            
+            
+        }
 
         if (painter.grab) {
 
@@ -399,6 +451,8 @@ const main = async () => {
 
         }
 
+        painter.last_pdist = 0.0;
+
         painter.set_cursor_position(
             x,
             y,
@@ -410,6 +464,7 @@ const main = async () => {
 
         if (event.deltaY > 0.0) {
             painter.viewer.fov *= 0.5;
+            painter.viewer.fov = Math.max(0.1, painter.viewer.fov);
         } else {
             painter.viewer.fov *= 2.0;
             painter.viewer.fov = Math.min(1, painter.viewer.fov);
@@ -437,9 +492,13 @@ const main = async () => {
         painter.clear();
         painter.viewer.update(delta_time);
 
-        const c = painter.ctx;
+        {
 
-        (() => {
+            const bg_canvas = painter.get(PaintId.BackGround);
+
+            if (!bg_canvas) throw new Error("cannot get bg_canvas.");
+
+            const ctx = bg_canvas.ctx;
 
             painter.update_game_scale(painter.viewer.fov_r);
 
@@ -471,17 +530,141 @@ const main = async () => {
                 room.gh,
                 room.wf,
                 room.hf,
+                room.tilewidth,
+                room.tileheight,
                 room.data.layers,
                 room.data.tilesets[0].firstgid,
-                room.data.tilewidth,
-                room.data.tileheight
+                //room.sprites
             );
 
-            c.drawImage(background.canvas, 0, 0);
+            ctx.drawImage(background.canvas, 0, 0);
 
-        })();
+        }
 
-        (() => {
+        {
+
+
+            const game_canvas = painter.get(PaintId.Game);
+
+            if (!game_canvas) throw new Error("cannot get game_canvas.");
+
+            const ctx = game_canvas.ctx;
+
+            ctx.save();
+
+            painter.scale_view(ctx);
+            painter.scale_game(ctx);
+            painter.camera_view(ctx);
+
+            for (const s of room.special_sprites) {
+
+                const sprite = room.sprites.get(s.id - room.data.tilesets[0].firstgid);
+
+                if (!sprite) continue;
+
+                ctx.save();
+                ctx.translate(s.x, s.y);
+
+                ctx.drawImage(sprite, 0, -s.height, s.width, s.height);
+
+                ctx.restore();
+
+            }
+
+            const lw = 25;
+
+            for (const spawner of room.mob_spawner) {
+
+                ctx.save();
+                ctx.translate(spawner.x, spawner.y);
+
+                ctx.fillStyle = spawner.color;
+                ctx.strokeStyle = darkened(spawner.color.substring(1), 0.2);
+                ctx.lineWidth = lw;
+                ctx.beginPath();
+
+                const collision = ctx.isPointInPath(
+                    spawner.points,
+                    painter.cursor_x,
+                    painter.cursor_y
+                );
+
+                ctx.globalAlpha = collision ? spawner.big ? 0.0 : 0.1 : 0.0;
+                ctx.fill(spawner.points);
+                ctx.globalAlpha = 1.0;
+                ctx.stroke(spawner.points);
+
+                ctx.restore();
+
+                if (!collision) {
+                    painter.tooltips.delete(spawner.id);
+                    continue;
+                }
+                if (painter.tooltips.has(spawner.id)) continue;
+
+                const contents: [string, string][] = [];
+
+                if (!isNaN(spawner.difficulty)) contents.push(["difficulty:" + spawner.difficulty, "#fff"]);
+                if (!isNaN(spawner.density)) contents.push(["density:" + spawner.density, "#fff"]);
+                if (!isNaN(spawner.extra_spawn_delay)) contents.push(["extra_spawn_delay:" + spawner.extra_spawn_delay, "#facbcb"]);
+                if (!isNaN(spawner.force_rarity)) contents.push(["force_rarity:" + spawner.force_rarity, "#facbcb"]);
+                if (!isNaN(spawner.team)) contents.push(["team:" + spawner.team, "#facbcb"]);
+
+                painter.tooltips.set(spawner.id, new ToolTip(
+                    contents,
+                    spawner.mobs
+                ));
+
+            }
+
+            for (const check of room.check_points) {
+
+                ctx.save();
+                ctx.translate(check.x, check.y);
+
+                ctx.fillStyle = "#ff00ff";
+                ctx.strokeStyle = "#ff00ff";
+                ctx.lineWidth = lw;
+                ctx.beginPath();
+
+                const collision = ctx.isPointInPath(
+                    check.points,
+                    painter.cursor_x,
+                    painter.cursor_y
+                );
+
+                ctx.globalAlpha = collision ? 0.1 : 0.0;
+                ctx.fill(check.points);
+                ctx.globalAlpha = 1.0;
+                ctx.stroke(check.points);
+
+                ctx.restore();
+
+
+                if (!collision) {
+                    painter.tooltips.delete(check.id);
+                    continue;
+                }
+                if (painter.tooltips.has(check.id)) continue;
+
+                const contents: [string, string][] = [[
+                    "checkpoint",
+                    "#ccffcf"
+                ]];
+
+                if (!isNaN(check.level)) contents.push(["level:" + check.level, "#fff"]);
+
+                painter.tooltips.set(check.id, new ToolTip(
+                    contents,
+                ));
+
+            }
+
+            ctx.restore();
+
+        }
+
+        {
 
             const ui_canvas = painter.get(PaintId.UI);
 
@@ -493,13 +676,106 @@ const main = async () => {
 
             painter.scale_view(ctx);
 
+            const x = painter.cursor_rx;
+            const y = painter.cursor_ry;
+            
+            const pad = 5;
+            const width = 230;
+            const height = 300;
+
+            const x2 = x + (-painter.tooltips.size * width * .5);
+
+            const rx = Math.max(pad, Math.min(x2, painter.view_width - (width + pad) * painter.tooltips.size));
+            const ry = Math.max(pad, Math.min(y, painter.view_height - height - pad));
+            
+            ctx.save();
+            ctx.translate(rx, ry);
+
+            const rw = 50;
+            const rh = 50;
+
+            const bgpath = new Path2D;
+
+            bgpath.roundRect(0, 0, rw, rh, 5);
+
+            for (const [id, tooltip] of painter.tooltips) {
+
+                ctx.save();
+                ctx.fillStyle = "#000";
+                ctx.globalAlpha = 0.2;
+
+                ctx.beginPath();
+                ctx.roundRect(0, 0, width, height, 10);
+                ctx.fill();
+
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = "#fff";
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 2;
+                ctx.font = "20px GameMono";
+                ctx.textAlign = "left";
+                ctx.textBaseline = "top"; 
+
+                ctx.translate(pad, pad);
+
+                for (const [text, fill] of tooltip.contents) {
+
+                    ctx.fillStyle = fill;
+                    ctx.strokeText(text, 0, 0);
+                    ctx.fillText(text, 0, 0);
+                    ctx.translate(0, 20);
+
+                }
+
+                if (tooltip.mobs) {
+
+
+                    ctx.lineWidth = rw * .15;
+                    ctx.translate(0, pad);
+
+                    let i = 0;
+                    for (const id of tooltip.mobs) {
+
+                        const sprite = room.mob_sprites.get(id);
+
+                        if (!sprite) continue;
+
+                        ctx.save();
+                        ctx.fillStyle = RarityColor.Common;
+                        ctx.strokeStyle = darkened(RarityColor.Common.substring(1), 0.2);
+
+                        ctx.fill(bgpath);
+                        ctx.clip(bgpath);
+
+                        ctx.drawImage(sprite, 0, 0, rw, rh);
+
+                        ctx.stroke(bgpath);
+                        ctx.restore();
+                        ctx.translate(rw + pad, 0);
+
+                        i++;
+
+                        if (i % 4 === 0) {
+                            ctx.translate(-(rw + pad) * 4, rh + pad);
+                        }
+
+                    }
+
+                }
+
+                ctx.restore();
+
+                ctx.translate(width + pad, 0);
+            }
+            ctx.restore();
+
             painter.ui.render(
                 delta_time,
                 painter,
                 ctx
             );
 
-            if (show_debug) {
+            if (show_debug || painter.testlog) {
 
                 ctx.fillStyle = "#fff";
                 ctx.strokeStyle = "#000";
@@ -519,13 +795,27 @@ const main = async () => {
                 ctx.letterSpacing = "0.1px";
                 ctx.strokeText(b, 0, 0);
                 ctx.fillText(b, 0, 0);
+
+                if (painter.testlog) {
+
+                    const s = painter.testlog;
+
+                    ctx.translate(
+                        0,
+                        -15
+                    );
+
+                    ctx.strokeText(s, 0, 0);
+                    ctx.fillText(s, 0, 0);
+                }
+
                 ctx.restore();
 
             }
 
             ctx.restore();
 
-        })();
+        }
 
         painter.draw();
         painter.end();

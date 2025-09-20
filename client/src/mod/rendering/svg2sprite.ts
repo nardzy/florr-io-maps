@@ -71,13 +71,16 @@ export const svg_to_canvas = (
 
     const s = temp.firstElementChild;
 
-    if (!s) return null;
+    if (!(s instanceof SVGElement)) return null;
 
     const view = s.getAttribute("viewBox")
         ?.split(" ")
-        .map(x => Number(x));
-
-    if (!view) return null;
+        .map(x => Number(x)) ?? [
+            0,
+            0,
+            Number(s.getAttribute("width")),
+            Number(s.getAttribute("height"))
+        ];
 
     const [
         x,
@@ -104,7 +107,7 @@ export const svg_to_canvas = (
         t: Element
     ) => {
 
-        const opacity = t.getAttribute("fill-opacity") ?? t.getAttribute("opacity") ?? "none";
+        const opacity = t.getAttribute("stroke-opacity") ?? t.getAttribute("fill-opacity") ?? t.getAttribute("opacity") ?? "none";
         const fill = t.getAttribute("fill") ?? "#000000";
         const stroke = t.getAttribute("stroke") ?? "none";
         const line_width = t.getAttribute("stroke-width") ?? "none";
@@ -267,15 +270,45 @@ export const svg_to_canvas = (
 
     };
 
-    const loop = (elem: Element) => {
+    const clip_paths: Map<string, Path2D> = new Map();
 
+    for (const clip of s.getElementsByTagName("clipPath")) {
+        
+        for (const p of clip.children) {
+
+            const path = p.getAttribute("d");
+            if (!path) continue;
+            const p2d = new Path2D(path);
+
+            clip_paths.set(`url(#${clip.id})`, p2d);
+
+        }
+
+    }
+
+    const loop = (elem: Element) => {
 
         for (const t of elem.children) {
 
             wirte(t);
 
-            if (t.tagName === "g")
+            if (t.tagName === "g") {
+
+                ctx.save();
+
+                const clip_path = clip_paths.get(
+                    t.getAttribute("clip-path") ?? ""
+                );
+
+                if (clip_path) {
+                    ctx.clip(clip_path);
+                }
+
                 loop(t);
+
+                ctx.restore();
+
+            }
 
         }
 

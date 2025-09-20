@@ -1,7 +1,8 @@
-import { PaintId } from "../../types/code";
+import { PaintArg, PaintConfig, PaintId } from "../../types/code";
 import { VIEW_H, VIEW_W } from "../config";
 import { UserInterface } from "../gui/button";
 import { Loading } from "../gui/loading";
+import { ToolTip } from "../gui/tooltip";
 import { ViewEntity } from "./view";
 
 const create_canvas = () => {
@@ -24,7 +25,9 @@ class OffCvs {
     canvas = new OffscreenCanvas(1, 1);
     ctx: OffscreenCanvasRenderingContext2D;
 
-    constructor() {
+    frame: boolean;
+
+    constructor(config?: PaintConfig) {
 
         const ctx = this.canvas.getContext("2d");
 
@@ -34,6 +37,7 @@ class OffCvs {
         ctx.lineJoin = "round";
 
         this.ctx = ctx;
+        this.frame = !!config?.frame;
 
     }
 
@@ -41,6 +45,7 @@ class OffCvs {
 
 export class Painter {
 
+    tooltips: Map<number, ToolTip> = new Map;
     loading = new Loading();
     pixel = 1;
 
@@ -56,6 +61,11 @@ export class Painter {
     delta_last_time = 0.0;
     time = 0.0;
 
+    canv_width = 1.0;
+    canv_height = 1.0;
+    canv_x = 0.0;
+    canv_y = 0.0;
+
     scale = 1.0;
     view_x = 1.0;
     view_y = 1.0;
@@ -69,12 +79,15 @@ export class Painter {
     camera_cy = 0.0;
     camera_width = 1.0;
     camera_height = 1.0;
+    testlog = "";
 
     total_scale = 1.0;
 
     cursor = "default";
-    cursor_x = 0;
-    cursor_y = 0;
+    cursor_x = 0.0;
+    cursor_y = 0.0;
+    cursor_rx = 0.0;
+    cursor_ry = 0.0;
     fps = 0.0;
     fps_sum = 0.0;
     fps_v: number[] = [];
@@ -82,6 +95,7 @@ export class Painter {
     mdframe = false;
     muframe = false;
     grab = false;
+    last_pdist = 0.0;
 
     ui = new UserInterface();
     
@@ -91,7 +105,7 @@ export class Painter {
 
     private offscreen: Map<PaintId, OffCvs> = new Map;
 
-    constructor(paints: PaintId[]) {
+    constructor(paints: PaintArg[]) {
 
         const ctx = this.canvas.getContext("2d");
 
@@ -99,8 +113,8 @@ export class Painter {
 
         for (const paint of paints) {
             this.offscreen.set(
-                paint,
-                new OffCvs()
+                paint.id,
+                new OffCvs(paint.config)
             );
         }
 
@@ -120,6 +134,8 @@ export class Painter {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         for (const [id, canvas] of this.offscreen) {
+
+            if (canvas.frame) continue;
 
             canvas.ctx.clearRect(0, 0, canvas.canvas.width, canvas.canvas.height);
             canvas.ctx.lineCap = "round";
@@ -149,6 +165,11 @@ export class Painter {
 
         this.view_x = this.view_width * .5;
         this.view_y = this.view_height * .5;
+
+        this.canv_width = width;
+        this.canv_height = height;
+        this.canv_x = width * .5;
+        this.canv_y = height * .5;
 
         for (const [id, canvas] of this.offscreen) {
             canvas.canvas.width = width;
@@ -183,6 +204,15 @@ export class Painter {
 
         this.camera_x = camera_x;
         this.camera_y = camera_y;
+
+    }
+
+    camera_view_offset(ctx: RenderingContext2D, w: number, h: number) {
+
+        ctx.translate(
+            -this.camera_x % w,
+            -this.camera_y % h
+        );
 
     }
 
@@ -239,6 +269,14 @@ export class Painter {
         this.cursor = "default";
         this.delta_time = Math.max(0, time - this.time);
         this.time = time;
+
+        const f = Math.min(1, this.delta_time * 0.02);
+
+        const x = this.cursor_x / this.scale;
+        const y = this.cursor_y / this.scale;
+
+        this.cursor_rx += (x - this.cursor_rx) * f;
+        this.cursor_ry += (y - this.cursor_ry) * f;
 
         if (!debug) {
             this.remove_fps_fv(true);

@@ -32,6 +32,8 @@ void main() {
         position *= flip;
     }
 
+    position.y = 1.0 - position.y;
+
     color = texture(tex, position);
 
 }

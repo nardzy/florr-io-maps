@@ -4,7 +4,7 @@ import { clamp2 } from "../utility";
 import { FLIP_HORIZONTAL, FLIP_VERTICAL, FLIP_DIAGONAL } from "../const";
 import { TiledLayer } from "../asset/tiled";
 
-export class BackGround {
+export class BackGroundGl2 {
 
     canvas = new OffscreenCanvas(1, 1);
     private gl: WebGL2RenderingContext;
@@ -105,7 +105,7 @@ export class BackGround {
 
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
             this.textures.set(id, texture);
 
@@ -143,16 +143,17 @@ export class BackGround {
         wf: number,
         hf: number,
 
-        layers: TiledLayer[],
-        first_id: number,
         width: number,
-        height: number
+        height: number,
+
+        layers: TiledLayer[],
+        first_id: number
 
     ) {
 
         const max_x = clamp2(gw - 1, (x + w) * wf | 0);
-        const min_x = clamp2(gw - 1, x * wf | 0);
-        const max_y = clamp2(gh - 1, (y + h) * hf | 0);
+        const min_x = clamp2(gw - 1, x * hf | 0);
+        const max_y = clamp2(gh - 1, (y + h) * wf | 0);
         const min_y = clamp2(gh - 1, y * hf | 0);
 
         const gl = this.gl;
@@ -174,7 +175,6 @@ export class BackGround {
             for (let y = min_y; y <= max_y; y++) {
 
                 const index = x + y * gw;
-
                 for (const layer of layers) {
 
                     if (!layer.data) continue;
@@ -214,11 +214,156 @@ export class BackGround {
                     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
                 }
+
             }
         }
 
-        // gl.flush();
+        gl.flush();
         
+    }
+
+}
+
+export class BackGround2D {
+
+    canvas = new OffscreenCanvas(1, 1);
+    ctx: RenderingContext2D;
+    renderset = new Set<number>;
+
+    constructor(
+        width: number,
+        height: number
+    ) {
+
+        const ctx = this.canvas.getContext("2d");
+        if (!ctx) {
+            throw new Error("ctxttttxttxct");
+        }
+
+        this.ctx = ctx;
+        this.resize(width, height);
+
+    }
+
+    resize(width: number, height: number) {
+
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.renderset.clear();
+
+    }
+
+    render(
+
+        scale: number,
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+
+        gw: number,
+        gh: number,
+        wf: number,
+        hf: number,
+
+        width: number,
+        height: number,
+
+        layers: TiledLayer[],
+        first_id: number,
+
+        sprites: Map<number, OffscreenCanvas>
+
+    ) {
+
+        const max_x = clamp2(gw - 1, (x + w) * wf | 0);
+        const min_x = clamp2(gw - 1, x * hf | 0);
+        const max_y = clamp2(gh - 1, (y + h) * wf | 0);
+        const min_y = clamp2(gh - 1, y * hf | 0);
+
+        const ctx = this.ctx;
+
+        const renderkeys = new Set(this.renderset.keys());
+
+        for (let x = min_x; x <= max_x; x++) {
+
+            for (let y = min_y; y <= max_y; y++) {
+
+                const index = x + y * gw;
+
+                if (this.renderset.has(index)) {
+                    renderkeys.delete(index);
+                    continue;
+                }
+
+                for (const layer of layers) {
+
+                    if (!layer.data) continue;
+
+                    const tid = Number(layer.data[index]);
+
+                    if (tid === 0) continue;
+
+                    const hori = (tid & FLIP_HORIZONTAL) !== 0;
+                    const vert = (tid & FLIP_VERTICAL) !== 0;
+                    const diag = (tid & FLIP_DIAGONAL) !== 0;
+
+                    const id = tid & ~(
+                        FLIP_HORIZONTAL |
+                        FLIP_VERTICAL |
+                        FLIP_DIAGONAL
+                    );
+
+                    const sprite = sprites.get(id - first_id);
+
+                    if (!sprite) continue;
+
+                    const x2 = x * width;
+                    const y2 = y * height;
+
+                    const cw = width * .5;
+                    const ch = height * .5;
+
+                    ctx.save();
+                    ctx.translate(
+                        x2 + cw,
+                        y2 + ch
+                    );
+
+                    const fox = hori ? -1 : 1;
+                    const f_y = vert ? -1 : 1;
+
+                    if (diag) {
+
+                        ctx.rotate(Math.PI * .5);
+                        ctx.scale(f_y, -fox);
+
+                    } else {
+
+                        ctx.scale(fox, f_y);
+
+                    }
+
+                    ctx.drawImage(
+                        sprite,
+                        -cw,
+                        -ch,
+                        width,
+                        height
+                    );
+                    ctx.restore();
+
+                }
+
+                //this.renderset.add(index);
+
+            }
+        }
+
+        for (const del of renderkeys) {
+            this.renderset.delete(del);
+        }
+
     }
 
 }
